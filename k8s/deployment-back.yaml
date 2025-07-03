@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: goat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: goatvote/backend:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: API_URL
+              value: http://api:9000
+            - name: DATABASE_URL
+              value: postgresql://goatuser:goatpass@postgres:5432/goatvote
+          ports:
+            - containerPort: 8000
