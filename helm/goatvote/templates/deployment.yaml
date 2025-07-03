@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goatvote.fullname" . }}-api
+  labels:
+  {{- include "goatvote.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app: api
+    {{- include "goatvote.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: api
+      {{- include "goatvote.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - env:
+        - name: POSTGRES_HOST
+          value: {{ quote .Values.api.api.env.postgresHost }}
+        - name: POSTGRES_PORT
+          value: {{ quote .Values.api.api.env.postgresPort }}
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_DB
+              name: {{ include "goatvote.fullname" . }}-postgres-secret
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_USER
+              name: {{ include "goatvote.fullname" . }}-postgres-secret
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: {{ include "goatvote.fullname" . }}-postgres-secret
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        image: {{ .Values.api.api.image.repository }}:{{ .Values.api.api.image.tag | default
+          .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.api.api.imagePullPolicy }}
+        name: api
+        ports:
+        - containerPort: 9000
+        resources: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goatvote.fullname" . }}-backend
+  labels:
+  {{- include "goatvote.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      app: backend
+    {{- include "goatvote.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: backend
+      {{- include "goatvote.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - env:
+        - name: API_URL
+          value: {{ quote .Values.backend.backend.env.apiUrl }}
+        - name: DATABASE_URL
+          value: {{ quote .Values.backend.backend.env.databaseUrl }}
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        image: {{ .Values.backend.backend.image.repository }}:{{ .Values.backend.backend.image.tag
+          | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.backend.backend.imagePullPolicy }}
+        name: backend
+        ports:
+        - containerPort: 8000
+        resources: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goatvote.fullname" . }}-frontend
+  labels:
+  {{- include "goatvote.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app: frontend
+    {{- include "goatvote.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: frontend
+      {{- include "goatvote.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - env:
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        image: {{ .Values.frontend.frontend.image.repository }}:{{ .Values.frontend.frontend.image.tag
+          | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.frontend.frontend.imagePullPolicy }}
+        name: frontend
+        ports:
+        - containerPort: 80
+        resources: {}

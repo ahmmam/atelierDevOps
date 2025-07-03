@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "goatvote.fullname" . }}-postgres
+  labels:
+  {{- include "goatvote.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: {{ include "goatvote.fullname" . }}-postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_DB
+              name: {{ include "goatvote.fullname" . }}-postgres-secret
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_USER
+              name: {{ include "goatvote.fullname" . }}-postgres-secret
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: {{ include "goatvote.fullname" . }}-postgres-secret
+        - name: KUBERNETES_CLUSTER_DOMAIN
+          value: {{ quote .Values.kubernetesClusterDomain }}
+        image: {{ .Values.postgres.postgres.image.repository }}:{{ .Values.postgres.postgres.image.tag
+          | default .Chart.AppVersion }}
+        name: postgres
+        ports:
+        - containerPort: 5432
+        resources: {}
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: pgdata
+  updateStrategy: {}
+  volumeClaimTemplates:
+  - metadata:
+      creationTimestamp: null
+      name: pgdata
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources: {{ .Values.postgres.volumeClaims.pgdata | toYaml | nindent 8 }}

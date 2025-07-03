@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "goatvote.fullname" . }}-goatvote-ingress
+  labels:
+  {{- include "goatvote.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: votegoat.loc
+    http:
+      paths:
+      - backend:
+          service:
+            name: '{{ include "goatvote.fullname" . }}-frontend'
+            port:
+              number: 80
+        path: /
+        pathType: Prefix

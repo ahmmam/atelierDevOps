@@ -1,0 +1,4 @@
+postgresSecret:
+  postgresDb: "goatvote"
+  postgresPassword: "12345"
+  postgresUser: "devops"

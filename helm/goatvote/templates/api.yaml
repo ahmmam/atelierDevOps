@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "goatvote.fullname" . }}-api
+  labels:
+  {{- include "goatvote.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.api.type }}
+  selector:
+    app: api
+    {{- include "goatvote.selectorLabels" . | nindent 4 }}
+  ports:
+  {{- .Values.api.ports | toYaml | nindent 2 }}
