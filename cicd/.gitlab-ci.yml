@@ -1,0 +1,104 @@
+# .gitlab-ci.yml – CI/CD pipeline for Goat Vote with SonarQube analysis
+
+stages:
+  - analyze
+  - build
+  - deploy
+
+# ---------------------------------------------------------------------------
+# SonarQube analysis (must succeed before building images)
+# ---------------------------------------------------------------------------
+sonarqube:
+  image: sonarsource/sonar-scanner-cli:5.0
+  stage: analyze
+  variables:
+    SONAR_USER_HOME: "$CI_PROJECT_DIR/.sonar" # cache location
+    GIT_DEPTH: "0"  # full history for blame info
+  cache:
+    key: sonar
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner -Dsonar.projectKey="goat-vote" \
+                    -Dsonar.sources="." \
+                    -Dsonar.host.url="$SONAR_HOST_URL" \
+                    -Dsonar.login="$SONAR_TOKEN"  
+  allow_failure: false
+
+# ---------------------------------------------------------------------------
+# Shared template for Docker-in-Docker builds
+# ---------------------------------------------------------------------------
+.build_template:
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      command: ["--host=tcp://docker:2375", "--insecure-registry=${CI_REGISTRY}"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+# ---------------------------------------------------------------------------
+# Build jobs – one per image
+# ---------------------------------------------------------------------------
+build_backend:
+  extends: .build_template
+  stage: build
+  needs: [sonarqube]
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG" backend/
+    - docker push "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
+
+build_api:
+  extends: .build_template
+  stage: build
+  needs: [sonarqube]
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE/api:$IMAGE_TAG" api/
+    - docker push "$CI_REGISTRY_IMAGE/api:$IMAGE_TAG"
+
+build_frontend:
+  extends: .build_template
+  stage: build
+  needs: [sonarqube]
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE/frontend:$IMAGE_TAG" frontend/
+    - docker push "$CI_REGISTRY_IMAGE/frontend:$IMAGE_TAG"
+
+# ---------------------------------------------------------------------------
+# Deployment job – updates running images in the cluster via Helm
+# ---------------------------------------------------------------------------
+.deploy_template:
+  image: bitnami/kubectl:1.30
+  stage: deploy
+  before_script:
+    - kubectl config use-context docker-desktop
+    - kubectl version --client
+  when: on_success
+  environment:
+    name: production
+    url: http://goatvote.local
+
+deploy:
+  extends: .deploy_template
+  needs:
+    - build_backend
+    - build_api
+    - build_frontend
+  script:
+    # Package Helm chart (already committed in repo) and upgrade
+    - helm upgrade --install goat-vote ./goat-vote-chart.tgz \
+        --namespace goat-vote \
+        --set image.tag=$IMAGE_TAG
+    # Wait for deployments
+    - kubectl -n goat-vote rollout status deployment/goat-vote-backend
+    - kubectl -n goat-vote rollout status deployment/goat-vote-api
+    - kubectl -n goat-vote rollout status deployment/goat-vote-frontend
+    # Helm Deployment
+    #- helm upgrade --install goat-vote goat-vote-chart.tgz \
+    #    --namespace goat-vote \
+    #    --set image.tag=$IMAGE_TAG
+  only:
+    - main
